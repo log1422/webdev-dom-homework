@@ -80,13 +80,13 @@
 const allcomments = commentsList.innerHTML;
 
 addFormNameElement.style.backgroundColor = "";
-if(addFormNameElement.value === "") {
+if(addFormNameElement.value.trim() === "") {
   addFormNameElement.style.backgroundColor = "red";
   return;
 }
 
 addFormTextElement.style.backgroundColor = "";
-if(addFormTextElement.value === "") {
+if(addFormTextElement.value.trim() === "") {
   addFormTextElement.style.backgroundColor = "red";
   return;
 }
