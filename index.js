@@ -1,231 +1,481 @@
-const listElement = document.getElementById('list');
-const deleteLastElementButton = document.getElementById('delete-last-button');
-const addFormElement = document.getElementById('add-form');
-let nLevel = 0; //уровень вложенности (думал как-то сделать, но не придумал)
-let nText = ''; //текст комментария, на который отвечают
-let nName = '';
+"use strict"
 
-const users = [
-  {
-    name: 'Глеб Фокин',
-    date: '12.02.22 12:18',
-    text: 'Это будет первый комментарий на этой странице',
-    textReply: '',
-    likes: 3,
-    likesFlag: false,
-    isEdit: false,
-    otherEdit: false,
-    nestingLevel: 0
-  },
-  {
-    name: 'Варвара Н.',
-    date: '13.02.22 19:22',
-    text: 'Мне нравится как оформлена эта страница! ❤',
-    textReply: '',
-    likes: 75,
-    likesFlag: true,
-    isEdit: false,
-    otherEdit: false,
-    nestingLevel: 0
-  }
-]
 
-const renderCommentators = () => {
-  const userHTML = users.map((user, index) => {
-    return `<li class="comment" data-index=${index}>
-  <div class="comment-header">
-    <div>${user.name}</div>
-    <div>${user.date}</div>
-  </div>
-  <div class="comment-body">
-    <div class="comment-text">
-    ${user.nestingLevel === 0 ? ''.trim() : user.textReply.replaceAll("QUOTE_BEGIN", "<div class='quote'>").replaceAll("QUOTE_END", "</div>")}
-    ${user.isEdit ? `<textarea type="textarea" class="add-form-text edit-comment" placeholder="Введите ваш коментарий" rows="4" id="comment-edit">${user.text}</textarea>` : user.text}
-    </div>
-  </div>
-  <div class="comment-footer">
-  <button class="button-edit-comment" data-index=${index} ${user.otherEdit ? 'disabled' : ''}>${user.isEdit ? 'Сохранить' : 'Редактировать'}</button>
-    <div class="likes">
-      <span class="likes-counter">${user.likes}</span>
-      <button class="like-button ${user.likesFlag ? '-active-like' : ''}" data-index=${index}></button>
-    </div>
-  </div>
-</li>`}).join('');
-  listElement.innerHTML = userHTML;
-  initEditCommentButtons();
-  initEventListenders();
-  initReplyComment();
+export const comments = {
+    data: [],
+    remoteURI: "https://wedev-api.sky.pro/api/v1/@log1422/comments",
+
+    addRecord(name, comment, quoteID = "") {
+        const isMine = (name === "@log1422")
+        const count = new Date().getTime()
+
+        this.data.push({
+            id: count,
+            name: name,
+            date: new Date().print(),
+            quoteID: quoteID,
+            comment: comment,
+            marks: 0,
+            isLiked: false,
+            isMine: isMine,
+        })
+    },
+
+    deleteLast() {
+        this.data.pop()
+    },
+
+    updateLikeStatus(id) {
+        const record = this.data[id]
+
+        if (record.isLiked) {
+            record.isLiked = false
+            record.marks -= 1
+        } else {
+            record.isLiked = true
+            record.marks += 1
+        }
+    },
+
+    printQuote(id, toElement) {
+        const record = this.data[id]
+
+        toElement.innerHTML = record.comment
+        return `${record.name}, `
+    },
+
+    printListItems() {
+        return this.data.map((record, index) => {
+            const commentCl = `comment${record.isMine ? " comment--mine" : ""}`
+            const buttonCl = `like-button${record.isLiked ? " like-button--active" : ""}`
+            const dataId = `data-id="${index}"`
+
+            const printQuote = () => {
+                if (!record.quoteID)
+                    return ""
+
+                const quote = this.data[record.quoteID]
+                const dataId = `data-quoteid="${record.quoteID}"`
+
+                return `<div class="comment-text comment-quote" ${dataId}>
+                    ${quote.comment}
+                </div>`
+            }
+
+            return `<li class="${commentCl}" ${dataId}>
+                <div class="comment-header">
+                    <div>${record.name}</div>
+                    <div>${record.date}</div>
+                </div>
+                <div class="comment-body">
+                    ${printQuote()}
+                    <div class="comment-text">
+                        ${record.comment}
+                    </div>
+                </div>
+                <div class="comment-footer">
+                    <div class="likes">
+                        <span class="likes-counter">${record.marks}</span>
+                        <button class="${buttonCl}" ${dataId}></button>
+                    </div>
+                </div>
+            </li>`
+        }).join('')
+    },
+
+    getCommentsFromServer(doRender, changeLoading) {
+        fetch(this.remoteURI)
+            .then((response) => response.json())
+            .then((data) => {
+                this.data = data.comments.map((record) => {
+                    return {
+                        id: record.id,
+                        name: record.author.name,
+                        date: record.date,
+                        quoteID: "",
+                        comment: record.text,
+                        marks: record.likes,
+                        isLiked: record.isLiked,
+                        isMine: (record.author.name === "@log1422"),
+                    }
+                })
+
+                changeLoading(false)
+
+                doRender()
+            })
+            .catch((error) => handleError(error, changeLoading))
+    },
+
+    sendCommentToServer(name, comment, doRender, changeLoading) {
+        const params = {
+            method: "POST",
+            body: JSON.stringify({
+                name: name,
+                text: comment,
+            })
+        }
+        let statusCode = 0
+
+        fetch(this.remoteURI, params)
+            .then((response) => {
+                statusCode = response.status
+
+                return response.json()
+            })
+            .then((data) => {
+                if (statusCode === 400)
+                    throw new Error(data.error)
+
+                this.getCommentsFromServer(doRender, changeLoading)
+            })
+            .catch((error) => handleError(error, changeLoading))
+    },
 }
 
-const renderAddForm = () => {
-  const addFormHTML = ` 
-  <input type="text" class="add-form-name" placeholder="Введите ваше имя" id="name-input" />
-  <textarea type="textarea" class="add-form-text" placeholder="${nLevel === 0 ? "Введите ваш коментарий" : `Введите ваш ответ пользователю ${nName}`}" rows="4"
-    id="text-input"></textarea>
-    ${nLevel === 0 ? `
-    <div class="add-form-row">
-    <button class="add-form-button" id="add-form-button">Написать</button>
-    ` :
-      `
-    <div class="add-form-row-asd">
-    <button class="add-form-button" id="cansel-form-button">Отменить</button>
-    <button class="add-form-button" id="add-form-button">Написать</button>
-    `
-    }
-  </div>`;
-  addFormElement.innerHTML = addFormHTML;
-  const canselBattonElement = document.getElementById('cansel-form-button');
-  if (canselBattonElement)
-    canselBattonElement.addEventListener('click', () => {
-      nLevel = 0;
-      nText = '';
-      nName = '';
-      renderAddForm();
-    })
-  const buttonElement = document.getElementById('add-form-button');
-  const nameInputElement = document.getElementById('name-input');
-  const textInputElement = document.getElementById('text-input');
 
-  const disabledButton = (ti) => {
-    buttonElement.removeAttribute('disabled');
-    buttonElement.classList.remove('disabled');
-    nameInputElement.classList.remove('error');
-    textInputElement.classList.remove('error');
-    if (ti.target.value.trim() === '') {
-      buttonElement.setAttribute('disabled', '');
-      buttonElement.classList.add('disabled');
-    }
-  }
+function handleError(error, changeLoading) {
+    alert(error)
 
-  const enterInput = (ti) => {
-    if (ti.code === 'Enter')
-      buttonElement.click();
-  }
-  nameInputElement.addEventListener('input', disabledButton);
-  textInputElement.addEventListener('input', disabledButton);
+    changeLoading(false)
+}
 
-  nameInputElement.addEventListener('keyup', enterInput);
-  textInputElement.addEventListener('keyup', enterInput);
 
-  buttonElement.addEventListener('click', () => {
-    nameInputElement.classList.remove('error');
-    textInputElement.classList.remove('error');
-    if (nameInputElement.value.trim() === '') {
-      nameInputElement.classList.add('error');
-      return;
-    }
-    if (textInputElement.value.trim() === '') {
-      textInputElement.classList.add('error');
-      return;
+function zeroPad(num, places) {
+    return String(num).padStart(places, "0")
+}
+
+Date.prototype.print = (date = null, withSeconds = false) => {
+    if (date === null)
+        date = new Date()
+    else if (typeof date === "string")
+        date = new Date(date)
+
+    const parts = []
+    parts.push(zeroPad(date.getDate(), 2))
+    parts.push(".")
+    parts.push(zeroPad(date.getMonth() + 1, 2))
+    parts.push(".")
+    parts.push(date.getFullYear().toString().substring(2))
+    parts.push(" ")
+    parts.push(zeroPad(date.getHours(), 2))
+    parts.push(":")
+    parts.push(zeroPad(date.getMinutes(), 2))
+
+    if (withSeconds) {
+        parts.push(":")
+        parts.push(zeroPad(date.getSeconds(), 2))
     }
 
-    const currentDate = new Date();
-    users.push({
-      name: nameInputElement.value
+    return parts.join("")
+}
+
+String.prototype.sterilize = function () {
+    return this
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;"),
-      date: (currentDate.getDate() < 10 ? '0' + (currentDate.getDate()) : currentDate.getDate()) + '.'
-        + (currentDate.getMonth() < 9 ? '0' + (currentDate.getMonth() + 1) : currentDate.getMonth() + 1) + '.'
-        + currentDate.getFullYear() + ' '
-        + (currentDate.getHours() < 10 ? '0' + (currentDate.getHours()) : currentDate.getHours()) + ':'
-        + (currentDate.getMinutes() < 10 ? '0' + (currentDate.getMinutes()) : currentDate.getMinutes()) + ':'
-        + (currentDate.getSeconds() < 10 ? '0' + (currentDate.getSeconds()) : currentDate.getSeconds()),
-      text: textInputElement.value
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;"),
-      textReply: nLevel === 0 ? '' : `QUOTE_BEGIN ${nText} QUOTE_END`,
-      likes: 0,
-      likesFlag: false,
-      isEdit: false,
-      otherEdit: false,
-      nestingLevel: nLevel
+        .replaceAll("/", "&sol;")
+}
+
+
+{
+    const root = document.querySelector(":root")
+    const lstComments = document.getElementById("comment-list")
+    const txtName = document.getElementById("name-input")
+    const txtQuote = document.getElementById("quote-input")
+    const txtComment = document.getElementById("comment-input")
+    const boxQuote = document.getElementById("quote-box")
+    const lblQuote = document.getElementById("quote-text")
+    const btnCancelQ = document.getElementById("quote-cancel")
+    const btnSubmit = document.getElementById("comment-add")
+    const btnRemove = document.getElementById("comment-remove")
+    const gifLoader = document.getElementById("loader")
+    const txtAll = [txtName, txtComment]
+
+    let takingText = false
+}
+
+
+btnSubmit.disabled = true
+
+
+function jumpTo(element) {
+    if (element)
+        element.scrollIntoView({
+            behavior: "smooth"
+        })
+}
+
+function getValue(element) {
+    return element.value.trim()
+}
+
+function clearInputs() {
+    txtName.value = ""
+    txtQuote.value = ""
+    txtComment.value = ""
+}
+
+function insertInputEmptyStatus(element) {
+    element.classList.add("add-form--error")
+}
+
+function removeEmptyInputStatus(element) {
+    element.classList.remove("add-form--error")
+}
+
+function updateCommentBoxes() {
+    document.querySelectorAll(".comment").forEach((box) => {
+        box.addEventListener("click", () => {
+            document.querySelector(".comment-editor").scrollIntoView()
+
+            const recordId = Number(box.dataset.id)
+
+            txtQuote.value = recordId
+            txtComment.value = comments.printQuote(recordId, lblQuote)
+
+            const element = lblQuote.parentElement
+
+            root.style.setProperty(
+                "--padding-for-comment",
+                `${element.clientHeight + 26}px`
+            )
+
+            txtComment.classList.add("add-form-text--inclusive")
+            txtComment.classList.remove("add-form-text--alone")
+
+            element.classList.add("quote--visible")
+            element.classList.remove("quote--invisible")
+        })
     })
-
-    renderCommentators();
-    nLevel = 0;
-    renderAddForm();
-    nameInputElement.value = '';
-    textInputElement.value = '';
-  })
 }
 
-renderAddForm();
+function updateCommentQuote() {
+    document.querySelectorAll(".comment-quote").forEach((quote) => {
+        quote.addEventListener("click", (e) => {
+            const recordId = Number(quote.dataset.quoteid)
+            const element = document.querySelector(`.comment[data-id="${recordId}"]`)
 
-const initReplyComment = () => {
-  const replyComments = document.querySelectorAll('.comment');
-  for (let replyComment of replyComments) {
-    let tIndex = replyComment.dataset.index;
-    replyComment.addEventListener('click', (event) => {
-      //event.stopPropagation();
-      nLevel = users[tIndex].nestingLevel + 1;
-      nText = `${users[tIndex].text}\n\tот ${users[tIndex].name}`;
-      nName = users[tIndex].name;
-      renderAddForm();
-    })
-  }
-}
+            e.stopPropagation()
 
-const initEventListenders = () => {
-  const likeButtonsElements = document.querySelectorAll('.like-button');
-  for (let likeButtonElement of likeButtonsElements)
-    likeButtonElement.addEventListener('click', (event) => {
-      event.stopPropagation();
-      let tIndex = likeButtonElement.dataset.index;
-      if (users[tIndex].likesFlag) {
-        users[tIndex].likes--;
-        users[tIndex].likesFlag = false;
-      } else {
-        users[tIndex].likes++;
-        users[tIndex].likesFlag = true;
-      }
-      renderCommentators();
+            jumpTo(element)
+        })
     })
 }
 
-const initTextAreaEdit = () => {
-  const textEdits = document.getElementById('comment-edit');
-  textEdits.addEventListener('click', (event) => {
-    event.stopPropagation();
-  });
-}
+function updateLikeButtons() {
+    document.querySelectorAll(".like-button").forEach((button) => {
+        button.addEventListener("click", (e) => {
+            const recordId = Number(button.dataset.id)
+            comments.updateLikeStatus(recordId)
 
-const initEditCommentButtons = () => {
-  const buttonsEditComment = document.querySelectorAll('.button-edit-comment');
-  const textEdits = document.getElementById('comment-edit');
-  for (let buttonEditComment of buttonsEditComment) {
-    buttonEditComment.addEventListener('click', (event) => {
-      event.stopPropagation();
-      let tIndex = buttonEditComment.dataset.index;
-      if (users[tIndex].isEdit) {
-        users[tIndex].text = textEdits.value;
-        users[tIndex].isEdit = false;
-        for (let otherButtons of buttonsEditComment) {
-          if (otherButtons.dataset.index != tIndex)
-            users[otherButtons.dataset.index].otherEdit = false;
-        }
-        renderCommentators();
-      } else {
-        users[tIndex].isEdit = true;
-        for (let otherButtons of buttonsEditComment) {
-          if (otherButtons.dataset.index != tIndex)
-            users[otherButtons.dataset.index].otherEdit = true;
-        }
-        renderCommentators();
-        initTextAreaEdit();
-      }
+            e.stopPropagation()
+
+            render()
+        })
     })
-  }
 }
 
-deleteLastElementButton.addEventListener('click', (event) => {
-  event.stopPropagation();
-  listElement.innerHTML = listElement.innerHTML.slice(0, listElement.innerHTML.lastIndexOf(`< li class="comment" > `));
-  users.pop();
-  renderCommentators();
+function updateLoadingState(show) {
+    if (show)
+        gifLoader.classList.remove("hidden")
+    else
+        gifLoader.classList.add("hidden")
+}
+
+
+txtName.addEventListener("dblclick", (e) => {
+    if (!getValue(txtName) && e.button === 0) {
+        txtName.value = "@log1422"
+
+        removeEmptyInputStatus(txtName)
+
+        if (getValue(txtComment))
+            btnSubmit.disabled = false
+    }
 })
 
-renderCommentators();
+txtAll.forEach((element) => element.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !btnSubmit.disabled) {
+        btnSubmit.click()
+        e.preventDefault()
+        e.stopPropagation()
+
+        removeEmptyInputStatus(element)
+
+        takingText = true
+
+        btnSubmit.disabled = true
+    }
+}))
+
+txtAll.forEach((element) => element.addEventListener("keyup", () => {
+    const name = getValue(txtName)
+    const comment = getValue(txtComment)
+
+    let forcedBlock = false
+    let wasErrorInName = name.length <= 3
+    let wasErrorInComment = !comment
+
+    if (element === txtName && wasErrorInName || element === txtComment && wasErrorInComment)
+        insertInputEmptyStatus(element)
+    else
+        removeEmptyInputStatus(element)
+
+    if (takingText) {
+        removeEmptyInputStatus(element)
+
+        forcedBlock = true
+        takingText = false
+    } else if (!gifLoader.classList.contains("hidden")) {
+        forcedBlock = true
+    }
+
+    btnSubmit.disabled = forcedBlock || wasErrorInName || wasErrorInComment
+}))
+
+boxQuote.addEventListener("click", (e) => {
+    const recordId = Number(txtQuote.value)
+    const element = document.querySelector(`.comment[data-id="${recordId}"]`)
+
+    e.stopPropagation()
+
+    jumpTo(element)
+})
+
+btnCancelQ.addEventListener("click", (e) => {
+    lblQuote.innerHTML = ""
+    txtQuote.value = ""
+
+    txtComment.classList.add("add-form-text--alone")
+    txtComment.classList.remove("add-form-text--inclusive")
+
+    const element = lblQuote.parentElement
+    element.classList.add("quote--invisible")
+    element.classList.remove("quote--visible")
+
+    e.stopPropagation()
+})
+
+btnSubmit.addEventListener("click", () => {
+    let name = getValue(txtName)
+    let quoteID = getValue(txtQuote)
+    let comment = getValue(txtComment)
+
+    if (name.length <= 3 || !comment)
+        return
+
+    document.querySelector(".add-form-row").scrollIntoView()
+    updateLoadingState(true)
+
+    clearInputs()
+
+    txtName.focus()
+    btnCancelQ.click()
+
+    btnSubmit.disabled = true
+
+    comments.sendCommentToServer(name.sterilize(), comment.sterilize(), render, updateLoadingState)
+})
+
+btnRemove.addEventListener("click", () => {
+    if (lstComments.children.length === 0)
+        return
+
+    comments.deleteLast()
+
+    render()
+})
+
+
+
+function render() {
+    lstComments.innerHTML = comments.printListItems()
+
+    updateCommentBoxes()
+    updateCommentQuote()
+    updateLikeButtons()
+}
+
+
+
+comments.getCommentsFromServer(render, updateLoadingState)
+
+const root = document.querySelector(":root")
+const lblLeft = document.getElementById("cute-mode")
+const lblRight = document.getElementById("devil-mode")
+const btnSlot = document.getElementById("slot-button")
+const btnArm = document.getElementById("arm-button")
+const buttons = [btnSlot, btnArm]
+
+let times = 0
+
+
+let activateLeft = function () {
+    lblLeft.classList.add("mode-active")
+    lblRight.classList.remove("mode-active")
+    btnArm.classList.remove("arm-changed")
+
+
+    root.style.setProperty("--scroll", "var(--pear)")
+    root.style.setProperty("--active", "var(--pear)")
+    root.style.setProperty("--disabled", "gray")
+    root.style.setProperty("--mine", "var(--green)")
+    root.style.setProperty("--others", "var(--purple)")
+    root.style.setProperty("--heart-empty", `url("./img/heart-empty.svg")`)
+    root.style.setProperty("--heart-filled", `url("./img/heart-filled.svg")`)
+
+    showEnoughTimes()
+}
+
+let activateRight = function () {
+    lblLeft.classList.remove("mode-active")
+    lblRight.classList.add("mode-active")
+    btnArm.classList.add("arm-changed")
+
+
+    root.style.setProperty("--scroll", "var(--red)")
+    root.style.setProperty("--active", "#ec3030")
+    root.style.setProperty("--disabled", "#9a4242")
+    root.style.setProperty("--mine", "#ec7630")
+    root.style.setProperty("--others", "var(--red)")
+    root.style.setProperty("--heart-empty", `url("./img/heart-devil-empty.svg")`)
+    root.style.setProperty("--heart-filled", `url("./img/heart-devil-filled.svg")`)
+
+    showEnoughTimes()
+}
+
+function showEnoughTimes() {
+    ++times
+
+    if (times < 3)
+        return
+
+    btnArm.classList.add("arm--broken")
+
+    activateLeft = function () {}
+    activateRight = function () {}
+
+    console.error("Доигрался. Сломал ручку переключателя. Молодцом!")
+}
+
+
+lblLeft.addEventListener("click", () => {
+    if (lblRight.classList.contains("mode-active"))
+        activateLeft()
+})
+
+lblRight.addEventListener("click", () => {
+    if (lblLeft.classList.contains("mode-active"))
+        activateRight()
+})
+
+buttons.forEach(
+    (button) => button.addEventListener("click", () => {
+        if (lblRight.classList.contains("mode-active"))
+            activateLeft()
+        else
+            activateRight()
+    })
+)
