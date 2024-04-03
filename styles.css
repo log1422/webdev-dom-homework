@@ -63,6 +63,10 @@ body {
   .comment-text {
     font-size: 32px;
   }
+.comment-text:hover{
+  color: #7334ea;
+  cursor: pointer;
+}
 
   .likes {
     display: flex;
