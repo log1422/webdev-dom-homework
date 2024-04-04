@@ -1,52 +1,20 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
   <head>
     <title>Проект "Комменты"</title>
     <meta charset="utf-8" />
-    <link rel="stylesheet" href="./styles.css">
-    <link type="image/png" sizes="48x48" rel="icon" href="./favicon.ico">
+    <link rel="stylesheet" href="styles.css" />
   </head>
 
   <body>
     <div class="container">
-      <div class="mode flex">
-        <div class="mode-inactive mode-active" id="cute-mode">Cute mode</div>
-        <div class="thumb flex">
-          <div class="slot" id="slot-button"></div>
-          <div class="arm" id="arm-button"></div>
-        </div>
-        <div class="mode-inactive" id="devil-mode">Devil mode</div>
-      </div>
-
-      <ul class="comments" id="comment-list">
+      <ul class="comments" id="comments">
+        <!-- Комментарии будут добавлены здесь -->
       </ul>
-
       <div class="add-form">
-        <label class="hidden" for="name-input">Имя:</label>
-        <input class="add-form-name" type="text" placeholder="Введите ваше имя" id="name-input">
-
-        <label class="hidden" for="quote-input">Цитата:</label>
-        <input class="add-form-name hidden" type="text" id="quote-input">
-
-        <div class="comment-editor">
-          <div class="quote flex" id="quote-box">
-            <div class="left" id="quote-text">
-            </div>
-            <button class="cancel-quote-button" id="quote-cancel">&times;</button>
-          </div>
-
-          <label class="hidden" for="comment-input">Комментарий:</label>
-          <textarea class="add-form-text" placeholder="Введите ваш коментарий" rows="4" id="comment-input"></textarea>
-        </div>
-
-        <div class="add-form-row flex">
-          <button class="add-form-button" id="comment-add">Написать</button>
-          <span class="loader hidden" id="loader"></span>
-          <button class="add-form-button" id="comment-remove">Удалить последний комментарий</button>
-        </div>
+        <!-- Форма добавления комментария -->
       </div>
     </div>
-
-    <script src="index.js"></script>
   </body>
+  <script src="index.js"></script>
 </html>
