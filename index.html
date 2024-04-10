@@ -31,66 +31,146 @@
   const commentsList = document.getElementById("comments");
 
   // URL API для получения и отправки комментариев
-  const apiUrl = 'https://github.com/log1422/comments';
+  export const comments = {
+    data: [],
+    remoteURI: "https://wedev-api.sky.pro/api/v1/log1422/comments",
 
-  // Функция для получения списка комментариев из API
-  async function fetchComments() {
-  try {
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error('Error while loading comments');
-    }
-    const data = await response.json();
+    addRecord(name, comment, quoteID = "") {
+      const isMine = (name === "@log1422")
+      const count = new Date().getTime()
 
-    const comments = data.map(item => ({
-      name: entityEncode(item.author),
-      date: new Date(item.date).toLocaleString(),
-      text: entityEncode(item.text),
-      liked: false,
-      likes: 0
-    }));
+      this.data.push({
+        id: count,
+        name: name,
+        date: new Date().print(),
+        quoteID: quoteID,
+        comment: comment,
+        marks: 0,
+        isLiked: false,
+        isMine: isMine,
+      })
+    },
 
-    return comments;
-  } catch (error) {
-    console.error('Error while loading comments:', error);
-    return [];
-  }
-}
+    deleteLast() {
+      this.data.pop()
+    },
 
-function entityEncode(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '<')
-                     .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-                     .replace(/'/g, '&#039;');
-}
-  
-function entityDecode(encodedStr) {
-  const txt = document.createElement('textarea');
-  txt.innerHTML = encodedStr;
-  return txt.value;
-}
+    updateLikeStatus(id) {
+      const record = this.data[id]
 
-  // Функция для отправки нового комментария через API
-  async function postComment(name, text) {
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          author: name,
-          text: text
-        })
-      });
-      if (!response.ok) {
-        throw new Error('Ошибка при отправке комментария');
+      if (record.isLiked) {
+        record.isLiked = false
+        record.marks -= 1
+      } else {
+        record.isLiked = true
+        record.marks += 1
       }
-      return true;
-    } catch (error) {
-      console.error('Ошибка при отправке комментария:', error);
-      return false;
-    }
+    },
+
+    printQuote(id, toElement) {
+      const record = this.data[id]
+
+      toElement.innerHTML = record.comment
+      return `${record.name}, `
+    },
+
+    printListItems() {
+      return this.data.map((record, index) => {
+        const commentCl = `comment${record.isMine ? " comment--mine" : ""}`
+        const buttonCl = `like-button${record.isLiked ? " like-button--active" : ""}`
+        const dataId = `data-id="${index}"`
+
+        const printQuote = () => {
+          if (!record.quoteID)
+            return ""
+
+          const quote = this.data[record.quoteID]
+          const dataId = `data-quoteid="${record.quoteID}"`
+
+          return `<div class="comment-text comment-quote" ${dataId}>
+                    ${quote.comment}
+                </div>`
+        }
+
+        return `<li class="${commentCl}" ${dataId}>
+                <div class="comment-header">
+                    <div>${record.name}</div>
+                    <div>${record.date}</div>
+                </div>
+                <div class="comment-body">
+                    ${printQuote()}
+                    <div class="comment-text">
+                        ${record.comment}
+                    </div>
+                </div>
+                <div class="comment-footer">
+                    <div class="likes">
+                        <span class="likes-counter">${record.marks}</span>
+                        <button class="${buttonCl}" ${dataId}></button>
+                    </div>
+                </div>
+            </li>`
+      }).join('')
+    },
+
+    getCommentsFromServer(doRender, changeLoading) {
+      fetch(this.remoteURI)
+        .then((response) => response.json())
+        .then((data) => {
+          this.data = data.comments.map((record) => {
+            return {
+              id: record.id,
+              name: record.author.name,
+              date: record.date,
+              quoteID: "",
+              comment: record.text,
+              marks: record.likes,
+              isLiked: record.isLiked,
+              isMine: (record.author.name === "@log1422"),
+            }
+          })
+
+          changeLoading(false)
+
+          doRender()
+        })
+        .catch((error) => handleError(error, changeLoading))
+    },
+
+    sendCommentToServer(name, comment, doRender, changeLoading) {
+      const params = {
+        method: "POST",
+        body: JSON.stringify({
+          name: name,
+          text: comment,
+        })
+      }
+      let statusCode = 0
+
+      fetch(this.remoteURI, params)
+        .then((response) => {
+          statusCode = response.status
+
+          return response.json()
+        })
+        .then((data) => {
+          if (statusCode === 400)
+            throw new Error(data.error)
+
+          this.getCommentsFromServer(doRender, changeLoading)
+        })
+        .catch((error) => handleError(error, changeLoading))
+    },
   }
+
+
+  function handleError(error, changeLoading) {
+    alert(error)
+
+    changeLoading(false)
+  }
+
+
 
   // Функция для рендеринга списка комментариев
   function renderComments(comments) {
