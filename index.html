@@ -1,71 +1,257 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Проект "Комменты"</title>
-    <meta charset="utf-8" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
 
-  <body>
-    <div class="container">
-      <ul class="comments">
-        <li class="comment">
-          <div class="comment-header">
-            <div>Глеб Фокин</div>
-            <div>12.02.22 12:18</div>
-          </div>
-          <div class="comment-body">
-            <div class="comment-text">
-              Это будет первый комментарий на этой странице
-            </div>
-          </div>
-          <div class="comment-footer">
-            <div class="likes">
-              <span class="likes-counter">3</span>
-              <button class="like-button"></button>
-            </div>
-          </div>
-        </li>
-        <li class="comment">
-          <div class="comment-header">
-            <div>Варвара Н.</div>
-            <div>13.02.22 19:22</div>
-          </div>
-          <div class="comment-body">
-            <div class="comment-text">
-              Мне нравится как оформлена эта страница! ❤
-            </div>
-          </div>
-          <div class="comment-footer">
-            <div class="likes">
-              <span class="likes-counter">75</span>
-              <button class="like-button -active-like"></button>
-            </div>
-          </div>
-        </li>
-      </ul>
-      <div class="add-form">
-        <input
-          type="text"
-          class="add-form-name"
-          placeholder="Введите ваше имя"
-        />
-        <textarea
-          type="textarea"
-          class="add-form-text"
-          placeholder="Введите ваш коментарий"
-          rows="4"
-        ></textarea>
-        <div class="add-form-row">
-          <button class="add-form-button">Написать</button>
-        </div>
+<head>
+  <title>Проект "Комменты"</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="container">
+    <ul class="comments" id="comments">
+      <!-- Комментарии будут добавлены здесь -->
+    </ul>
+    <div class="add-form">
+      <input type="text" class="add-form-name" id="add-form-name" placeholder="Введите ваше имя" value="" />
+      <textarea class="add-form-text" id="add-form-text" placeholder="Введите ваш комментарий" rows="4"></textarea>
+      <div class="add-form-row">
+        <button class="add-form-button" id="add-form-button">Написать</button>
       </div>
     </div>
-  </body>
+  </div>
 
-  <script>
-    "use strict";
-    // Код писать здесь
-    console.log("It works!");
-  </script>
+
+</body>
+<script>
+  "use strict";
+  const addFormButtonElement = document.getElementById("add-form-button");
+  const addFormTextElement = document.getElementById("add-form-text");
+  const addFormNameElement = document.getElementById("add-form-name");
+  const commentsList = document.getElementById("comments");
+
+  // URL API для получения и отправки комментариев
+  export const comments = {
+    data: [],
+    remoteURI: "https://wedev-api.sky.pro/api/v1/log1422/comments",
+
+    addRecord(name, comment, quoteID = "") {
+      const isMine = (name === "@log1422")
+      const count = new Date().getTime()
+
+      this.data.push({
+        id: count,
+        name: name,
+        date: new Date().print(),
+        quoteID: quoteID,
+        comment: comment,
+        marks: 0,
+        isLiked: false,
+        isMine: isMine,
+      })
+    },
+
+    deleteLast() {
+      this.data.pop()
+    },
+
+    updateLikeStatus(id) {
+      const record = this.data[id]
+
+      if (record.isLiked) {
+        record.isLiked = false
+        record.marks -= 1
+      } else {
+        record.isLiked = true
+        record.marks += 1
+      }
+    },
+
+    printQuote(id, toElement) {
+      const record = this.data[id]
+
+      toElement.innerHTML = record.comment
+      return `${record.name}, `
+    },
+
+    printListItems() {
+      return this.data.map((record, index) => {
+        const commentCl = `comment${record.isMine ? " comment--mine" : ""}`
+        const buttonCl = `like-button${record.isLiked ? " like-button--active" : ""}`
+        const dataId = `data-id="${index}"`
+
+        const printQuote = () => {
+          if (!record.quoteID)
+            return ""
+
+          const quote = this.data[record.quoteID]
+          const dataId = `data-quoteid="${record.quoteID}"`
+
+          return `<div class="comment-text comment-quote" ${dataId}>
+                    ${quote.comment}
+                </div>`
+        }
+
+        return `<li class="${commentCl}" ${dataId}>
+                <div class="comment-header">
+                    <div>${record.name}</div>
+                    <div>${record.date}</div>
+                </div>
+                <div class="comment-body">
+                    ${printQuote()}
+                    <div class="comment-text">
+                        ${record.comment}
+                    </div>
+                </div>
+                <div class="comment-footer">
+                    <div class="likes">
+                        <span class="likes-counter">${record.marks}</span>
+                        <button class="${buttonCl}" ${dataId}></button>
+                    </div>
+                </div>
+            </li>`
+      }).join('')
+    },
+
+    getCommentsFromServer(doRender, changeLoading) {
+      fetch(this.remoteURI)
+        .then((response) => response.json())
+        .then((data) => {
+          this.data = data.comments.map((record) => {
+            return {
+              id: record.id,
+              name: record.author.name,
+              date: record.date,
+              quoteID: "",
+              comment: record.text,
+              marks: record.likes,
+              isLiked: record.isLiked,
+              isMine: (record.author.name === "@log1422"),
+            }
+          })
+
+          changeLoading(false)
+
+          doRender()
+        })
+        .catch((error) => handleError(error, changeLoading))
+    },
+
+    sendCommentToServer(name, comment, doRender, changeLoading) {
+      const params = {
+        method: "POST",
+        body: JSON.stringify({
+          name: name,
+          text: comment,
+        })
+      }
+      let statusCode = 0
+
+      fetch(this.remoteURI, params)
+        .then((response) => {
+          statusCode = response.status
+
+          return response.json()
+        })
+        .then((data) => {
+          if (statusCode === 400)
+            throw new Error(data.error)
+
+          this.getCommentsFromServer(doRender, changeLoading)
+        })
+        .catch((error) => handleError(error, changeLoading))
+    },
+  }
+
+
+  function handleError(error, changeLoading) {
+    alert(error)
+
+    changeLoading(false)
+  }
+
+
+
+  // Функция для рендеринга списка комментариев
+  function renderComments(comments) {
+    commentsList.innerHTML = "";
+    comments.forEach((comment, index) => {
+      const commentHTML = `
+          <li class="comment">
+            <div class="comment-header">
+              <div>${comment.name}</div>
+              <div>${comment.date}</div>
+            </div>
+            <div class="comment-body">
+              <div class="comment-text">{entityDecode(comment.text)}</div>
+            </div>
+            <div class="comment-footer">
+              <div class="likes">
+                <span class="likes-counter">${comment.likes}</span>
+                <button class="like-button ${comment.liked ? '-active-like' : ''}" data-index="${index}"></button>
+              </div>
+            </div>
+          </li>
+        `;
+      commentsList.insertAdjacentHTML('beforeend', commentHTML);
+    });
+  }
+
+  // Обработчик клика по кнопке лайка
+  commentsList.addEventListener("click", (event) => {
+    if (event.target.classList.contains("like-button")) {
+      const index = event.target.dataset.index;
+      const comment = commentsData[index];
+      if (comment.liked) {
+        comment.likes--;
+      } else {
+        comment.likes++;
+      }
+      comment.liked = !comment.liked;
+      renderComments(commentsData);
+    }
+  });
+
+  // Обработчик клика по комментарию для ответа
+  commentsList.addEventListener("click", (event) => {
+    if (event.target.classList.contains("comment-text")) {
+      const index = event.target.closest(".comment").dataset.index;
+      const comment = commentsData[index];
+      addFormTextElement.value = `QUOTE_BEGIN ${comment.name}: ${comment.text} QUOTE_END\n`;
+    }
+  });
+
+  // Инициализация списка комментариев
+  fetchComments().then(comments => {
+    commentsData = comments;
+    renderComments(commentsData);
+  });
+
+  // Обработчик клика по кнопке добавления комментария
+  addFormButtonElement.addEventListener("click", async (event) => {
+    event.preventDefault(); // Предотвращаем отправку формы
+    const name = addFormNameElement.value;
+    const text = addFormTextElement.value;
+    if (name && text) {
+      const success = await postComment(name, text);
+      if (success) {
+        // Обновляем список комментариев
+        fetchComments().then(comments => {
+          commentsData = comments;
+          renderComments(commentsData);
+        });
+        // Очищаем форму после отправки комментария
+        addFormNameElement.value = '';
+        addFormTextElement.value = '';
+      } else {
+        alert('Ошибка при отправке комментария.');
+      }
+    } else {
+      alert('Пожалуйста, заполните все поля формы.');
+    }
+  });
+
+  console.log("It works!");
+</script>
+
 </html>
