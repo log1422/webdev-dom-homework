@@ -33,66 +33,67 @@
   // URL API для получения и отправки комментариев
   export const comments = {
     data: [],
-    remoteURI: "https://wedev-api.sky.pro/api/v1/log1422/comments",
+    remoteURI:"https://wedev-api.sky.pro/api/v1/log1422/comments",
 
-    addRecord(name, comment, quoteID = "") {
-      const isMine = (name === "@log1422")
-      const count = new Date().getTime()
+    addRecord(name, comment, quoteID="") {
+        const isMine = (name === "@log1422")
+        const count  = new Date().getTime()
 
-      this.data.push({
-        id: count,
-        name: name,
-        date: new Date().print(),
-        quoteID: quoteID,
-        comment: comment,
-        marks: 0,
-        isLiked: false,
-        isMine: isMine,
-      })
+        this.data.push({
+            id:      count,
+            name:    name,
+            date:    new Date().print(),
+            quoteID: quoteID,
+            comment: comment,
+            marks:   0,
+            isLiked: false,
+            isMine:  isMine,
+        })
     },
 
     deleteLast() {
-      this.data.pop()
+        this.data.pop()
     },
 
     updateLikeStatus(id) {
-      const record = this.data[id]
+        const record = this.data[id]
 
-      if (record.isLiked) {
-        record.isLiked = false
-        record.marks -= 1
-      } else {
-        record.isLiked = true
-        record.marks += 1
-      }
+        if (record.isLiked) {
+            record.isLiked = false
+            record.marks  -= 1
+        } else {
+            record.isLiked = true
+            record.marks  += 1
+        }
     },
 
     printQuote(id, toElement) {
-      const record = this.data[id]
+        const record = this.data[id]
 
-      toElement.innerHTML = record.comment
-      return `${record.name}, `
+        toElement.innerHTML =  record.comment
+        return `${record.name}, `
+        // return `<b>${record.name},</b> `
     },
 
     printListItems() {
-      return this.data.map((record, index) => {
-        const commentCl = `comment${record.isMine ? " comment--mine" : ""}`
-        const buttonCl = `like-button${record.isLiked ? " like-button--active" : ""}`
-        const dataId = `data-id="${index}"`
+        return this.data.map((record, index) => {
+            const commentCl = `comment${record.isMine ? " comment--mine" : ""}`
+            const buttonCl  = `like-button${record.isLiked ? " like-button--active" : ""}`
+            const dataId    = `data-id="${index}"`
 
-        const printQuote = () => {
-          if (!record.quoteID)
-            return ""
+            const printQuote = () => {
+                if (!record.quoteID)
+                    return ""
 
-          const quote = this.data[record.quoteID]
-          const dataId = `data-quoteid="${record.quoteID}"`
+                const quote = this.data[record.quoteID]
+                const dataId = `data-quoteid="${record.quoteID}"`
 
-          return `<div class="comment-text comment-quote" ${dataId}>
+                return `<div class="comment-text comment-quote" ${dataId}>
                     ${quote.comment}
                 </div>`
-        }
+            }
 
-        return `<li class="${commentCl}" ${dataId}>
+            return `<li class="${commentCl}" ${dataId}>
                 <div class="comment-header">
                     <div>${record.name}</div>
                     <div>${record.date}</div>
@@ -110,67 +111,67 @@
                     </div>
                 </div>
             </li>`
-      }).join('')
+        }).join('')
     },
 
     getCommentsFromServer(doRender, changeLoading) {
-      fetch(this.remoteURI)
-        .then((response) => response.json())
-        .then((data) => {
-          this.data = data.comments.map((record) => {
-            return {
-              id: record.id,
-              name: record.author.name,
-              date: record.date,
-              quoteID: "",
-              comment: record.text,
-              marks: record.likes,
-              isLiked: record.isLiked,
-              isMine: (record.author.name === "@log1422"),
-            }
-          })
+        fetch(this.remoteURI)
+            .then((response) => response.json())
+            .then((data) => {
+                this.data = data.comments.map((record) => {
+                    return {
+                        id:      record.id,
+                        name:    record.author.name,
+                        date:    record.date,
+                        quoteID: "",
+                        comment: record.text,
+                        marks:   record.likes,
+                        isLiked: record.isLiked,
+                        isMine:  (record.author.name === "@log1422"),
+                    }
+                })
 
-          changeLoading(false)
+                changeLoading(false)
 
-          doRender()
-        })
-        .catch((error) => handleError(error, changeLoading))
+                doRender()
+            })
+            .catch((error) => handleError(error, changeLoading))
     },
 
     sendCommentToServer(name, comment, doRender, changeLoading) {
-      const params = {
-        method: "POST",
-        body: JSON.stringify({
-          name: name,
-          text: comment,
-        })
-      }
-      let statusCode = 0
+        const params = {
+            method: "POST",
+            body: JSON.stringify({
+                name: name,
+                text: comment,
+            })
+        }
+        let statusCode = 0
 
-      fetch(this.remoteURI, params)
-        .then((response) => {
-          statusCode = response.status
+        fetch(this.remoteURI, params)
+            .then((response) => {
+                statusCode = response.status
 
-          return response.json()
-        })
-        .then((data) => {
-          if (statusCode === 400)
-            throw new Error(data.error)
+                return response.json()
+            })
+            .then((data) => {
+                if (statusCode === 400)
+                    throw new Error(data.error)
 
-          this.getCommentsFromServer(doRender, changeLoading)
-        })
-        .catch((error) => handleError(error, changeLoading))
+                this.getCommentsFromServer(doRender, changeLoading)
+            })
+            .catch((error) => handleError(error, changeLoading))
     },
-  }
+}
 
 
-  function handleError(error, changeLoading) {
+function handleError(error, changeLoading) {
     alert(error)
 
     changeLoading(false)
-  }
+}
 
-
+ 
 
   // Функция для рендеринга списка комментариев
   function renderComments(comments) {
