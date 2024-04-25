@@ -1,54 +1,55 @@
-import {
-    loginUser,
-    setToken,
-    setUser,
-    token
-} from "./api.js";
-import {
-    fetchPromiseGet
-} from "./main.js";
+import { loginUser, setToken, token } from "./api.js"
+import { renderApp, setUser } from "./main.js"
 
-export const renderLogin = () => {
-    //отрисовываем форму
-    const appElement = document.getElementById("app");
-    const loginHtml = `<h1>Страница входа</h1>
-    <div class="add-form">
-      <h3 class="form-title">Форма входа</h3>
-      <div class="form-row">
-        <input type="text" id="login-input" class="input" placeholder="Логин" />
-        <input
-          type="password"
-          id="password-input"
-          class="input"
-          placeholder="Пароль"
-        />
-      </div>
-      <br />
-      <button class="button" id="login-button">Войти</button>
-      <button class="button-reg">Зарегистрироваться</button>
-    </div>`
-    //создаем элемент app
+export function renderLogin() {
+  const container = document.querySelector('.container')
+  container.innerHTML = `<div class="add-form">
+          <h1 class="form-title">Авторизоваться</h1>
+          <div class="form-row">
+            
+            <input class="input" type="text" id="login-input" placeholder="Логин"  />
+            <input class="input" type="password" id="password-input" placeholder="Пароль" />
+          </div>
+          <button class="add-form-button" id="login-button">Войти</button>
+          
+             
+        </div> `
+  const loginButton = document.getElementById('login-button');
 
-    appElement.innerHTML = loginHtml;
+  loginButton.addEventListener("click", () => {
+    const login = document.getElementById('login-input').value;
+    const password = document.getElementById('password-input').value;
 
-    const buttonGet = document.getElementById("login-button");
-    const loginInput = document.getElementById("login-input");
-    const passwordInput = document.getElementById("password-input");
-    //Получаем данные от API
-    buttonGet.addEventListener("click", () => {
-        loginUser({
-                login: loginInput.value,
-                password: passwordInput.value
-            }).then((responseData) => {
-                console.log(token);
-                setToken(responseData.user.token);
-                setUser(responseData.user.name);
-                console.log(token);
-            }).then(() => {
-                fetchPromiseGet();
-            })
-            .catch((error) => {
-                console.error("Произошла ошибка при установке имени пользователя:", error);
-            });
-    })
-};
+    if ((login.trim() === "")) {
+      alert("Пожалуйста, введите логин");
+      return;
+    }
+    if ((password.trim() === "")) {
+      alert("Пожалуйста, введите пароль");
+      return;
+    }
+
+    loginUser({ login, password })
+      .then((data) => {
+        setUser(data.user);
+        setToken(data.user.token);
+        renderApp();
+
+        console.log(token);
+      }).catch((error) => {
+        if (error.message === "Нет авторизации") {
+          alert("Неверные данные");
+        }
+        if (error.message === "Сервер сломался") {
+          alert("Сервер сломался, попробуй позже");
+          return;
+        }
+        if (error.message === 'Failed to fetch') {
+          alert("Кажется что-то пошло не так, попробуйте позже");
+        }
+
+        console.warn(error);
+      });
+
+  })
+}
