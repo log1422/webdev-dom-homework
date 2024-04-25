@@ -3,7 +3,7 @@ body {
   }
 
   .container {
-    font-family: Helvetica;
+    font-family: "Helvetica", sans-serif;
     color: #ffffff;
     display: flex;
     flex-direction: column;
@@ -63,6 +63,10 @@ body {
   .comment-text {
     font-size: 32px;
   }
+.comment-text:hover{
+  color: #7334ea;
+  cursor: pointer;
+}
 
   .likes {
     display: flex;
@@ -101,7 +105,7 @@ body {
   .add-form-name,
   .add-form-text {
     font-size: 16px;
-    font-family: Helvetica;
+    font-family: "Helvetica", sans-serif;;
     border-radius: 8px;
     border: none;
   }
